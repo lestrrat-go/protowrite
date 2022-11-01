@@ -34,6 +34,10 @@ func (b *Builder) Message(name string) *MessageBuilder {
 	return &MessageBuilder{object: &Message{Name: name}}
 }
 
+func (b *Builder) MessageLiteral() *MessageLiteralBuilder {
+	return &MessageLiteralBuilder{object: &MessageLiteral{}}
+}
+
 func (b *Builder) OneOf(name string) *OneOfBuilder {
 	return &OneOfBuilder{object: &OneOf{Name: name}}
 }
@@ -53,6 +57,15 @@ func (b *ExtensionBuilder) StringField(name string, id int) *ExtensionBuilder {
 
 func (b *ExtensionBuilder) Uint64Field(name string, id int) *ExtensionBuilder {
 	b.object.Fields = append(b.object.Fields, Uint64Field(name, id))
+	return b
+}
+
+func (b *ExtensionBuilder) Field(typ, name string, id int) *ExtensionBuilder {
+	b.object.Fields = append(b.object.Fields, &Field{
+		Type: typ,
+		Name: name,
+		ID:   id,
+	})
 	return b
 }
 
@@ -85,6 +98,11 @@ func (b *FileBuilder) Imports(v ...*Import) *FileBuilder {
 
 func (b *FileBuilder) Enums(v ...*Enum) *FileBuilder {
 	b.object.Enums = append(b.object.Enums, v...)
+	return b
+}
+
+func (b *FileBuilder) Extensions(v ...*Extension) *FileBuilder {
+	b.object.Extensions = append(b.object.Extensions, v...)
 	return b
 }
 
@@ -122,7 +140,17 @@ type MessageBuilder struct {
 	object *Message
 }
 
-func (b *MessageBuilder) Option(name string, value string) *MessageBuilder {
+func (b *MessageBuilder) StringField(name string, id int) *MessageBuilder {
+	b.object.Fields = append(b.object.Fields, StringField(name, id))
+	return b
+}
+
+func (b *MessageBuilder) Uint64Field(name string, id int) *MessageBuilder {
+	b.object.Fields = append(b.object.Fields, Uint64Field(name, id))
+	return b
+}
+
+func (b *MessageBuilder) Option(name string, value interface{}) *MessageBuilder {
 	b.object.Options = append(b.object.Options, &Option{
 		Name:  name,
 		Value: value,
@@ -199,5 +227,21 @@ func (b *ServiceBuilder) Method(name, input, output string) *ServiceBuilder {
 }
 
 func (b *ServiceBuilder) MustBuild() *Service {
+	return b.object
+}
+
+type MessageLiteralBuilder struct {
+	object *MessageLiteral
+}
+
+func (b *MessageLiteralBuilder) Field(name string, value interface{}) *MessageLiteralBuilder {
+	b.object.Fields = append(b.object.Fields, &MessageLiteralField{
+		Name:  name,
+		Value: value,
+	})
+	return b
+}
+
+func (b *MessageLiteralBuilder) MustBuild() *MessageLiteral {
 	return b.object
 }

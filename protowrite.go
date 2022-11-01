@@ -22,6 +22,10 @@ import (
 	"strings"
 )
 
+type encoder interface {
+	encode(context.Context, io.Writer) error
+}
+
 type encodeIndentKey struct{}
 
 const indentOnce = "    "
@@ -70,11 +74,10 @@ func (f *File) encode(ctx context.Context, dst io.Writer) error {
 		}
 	}
 	for i, v := range f.Extensions {
-		ctx = moreIndent(ctx)
+		fmt.Fprintf(dst, "\n")
 		if err := v.encode(ctx, dst); err != nil {
 			return fmt.Errorf(`failed to encode extension declaration %d: %w`, i, err)
 		}
-		ctx = lessIndent(ctx)
 	}
 	for i, v := range f.Messages {
 		fmt.Fprintf(dst, "\n")
@@ -128,8 +131,57 @@ func (f *Import) encode(ctx context.Context, dst io.Writer) error {
 // option. The caller is responsible to quote strings, use correct braces, etc.
 type Option struct {
 	Name    string
-	Value   string
+	Value   interface{} // Scalar or MessageLiteral
 	Compact bool
+}
+
+type MessageLiteral struct {
+	SingleLine bool
+	Fields     []*MessageLiteralField
+}
+
+func (ml *MessageLiteral) encode(ctx context.Context, dst io.Writer) error {
+	indent := getIndent(ctx)
+	fmt.Fprint(dst, "{")
+	ctx = moreIndent(ctx)
+	for i, field := range ml.Fields {
+		if !ml.SingleLine {
+			fmt.Fprintf(dst, "\n%s", getIndent(ctx))
+		} else if i > 0 {
+			fmt.Fprintf(dst, " ")
+		}
+
+		if err := field.encode(ctx, dst); err != nil {
+			return fmt.Errorf(`failed to encode field %d for message literal: %w`, i, err)
+		}
+
+	}
+	ctx = lessIndent(ctx)
+	if !ml.SingleLine {
+		fmt.Fprintf(dst, "\n%s", indent)
+	}
+	fmt.Fprint(dst, "}")
+	return nil
+}
+
+type MessageLiteralField struct {
+	Name  string
+	Value interface{}
+}
+
+func (mlf *MessageLiteralField) encode(ctx context.Context, dst io.Writer) error {
+	var val string
+	if e, ok := mlf.Value.(encoder); ok {
+		var buf strings.Builder
+		if err := e.encode(ctx, &buf); err != nil {
+			return fmt.Errorf(`failed to encode option value for message literal %q: %w`, mlf.Name, err)
+		}
+		val = buf.String()
+	} else {
+		val = fmt.Sprintf("%#v", mlf.Value)
+	}
+	fmt.Fprintf(dst, "%s: %s", mlf.Name, val)
+	return nil
 }
 
 func (o *Option) encode(ctx context.Context, dst io.Writer) error {
@@ -140,7 +192,19 @@ func (o *Option) encode(ctx context.Context, dst io.Writer) error {
 		return nil
 	}
 	indent := getIndent(ctx)
-	fmt.Fprintf(dst, "\n%soption %s = %s;", indent, o.Name, o.Value)
+
+	var val string
+	if e, ok := o.Value.(encoder); ok {
+		var buf strings.Builder
+		if err := e.encode(ctx, &buf); err != nil {
+			return fmt.Errorf(`failed to encode option value for option %q: %w`, o.Name, err)
+		}
+		val = buf.String()
+	} else {
+		val = fmt.Sprintf("%#v", o.Value)
+	}
+
+	fmt.Fprintf(dst, "\n%soption %s = %s;", indent, o.Name, val)
 	return nil
 }
 

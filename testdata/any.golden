@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package foo.bar;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+    google.protobuf.Any extra = 33333;
+}
+
+message MyOptionData {
+    string name = 1;
+    uint64 id = 3;
+}
+
+message MyMessage {
+    option (extra) = {
+        [googleapis.com/foo.bar.MyOptionData]: {
+            name: "foobar"
+            id: 42
+        }
+    };
+}
