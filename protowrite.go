@@ -67,6 +67,12 @@ func multilineComment(ctx context.Context, dst io.Writer, s string) {
 	}
 }
 
+func singlelineComment(dst io.Writer, s string) {
+	// no new lines here
+	s = strings.Replace(s, "\n", " ", -1)
+	fmt.Fprintf(dst, " // %s", s)
+}
+
 // File represents a protobuf file, which is the top-most level resource
 // that this package can generate
 type File struct {
@@ -292,9 +298,7 @@ func (ee *EnumElement) encode(ctx context.Context, dst io.Writer) error {
 	indent := getIndent(ctx)
 	fmt.Fprintf(dst, "\n%s%s = %d;", indent, ee.Name, ee.Value)
 	if s := ee.Comment; s != "" {
-		// no new lines here
-		s = strings.Replace(s, "\n", " ", -1)
-		fmt.Fprintf(dst, " // %s", s)
+		singlelineComment(dst, s)
 	}
 	return nil
 }
@@ -393,6 +397,7 @@ type Field struct {
 	ID          int
 	Cardinality FieldCardinality
 	Options     []*Option
+	Comment     string
 }
 
 func (f *Field) encode(ctx context.Context, dst io.Writer) error {
@@ -400,11 +405,11 @@ func (f *Field) encode(ctx context.Context, dst io.Writer) error {
 	fmt.Fprintf(dst, "\n%s", indent)
 	switch f.Cardinality {
 	case CardinalityRequired:
-		fmt.Fprintf(dst, "required")
+		fmt.Fprintf(dst, "required ")
 	case CardinalityOptional:
-		fmt.Fprintf(dst, "optional")
+		fmt.Fprintf(dst, "optional ")
 	case CardinalityRepeated:
-		fmt.Fprintf(dst, "repeated")
+		fmt.Fprintf(dst, "repeated ")
 	}
 	fmt.Fprintf(dst, "%s %s = %d", f.Type, f.Name, f.ID)
 
@@ -418,6 +423,10 @@ func (f *Field) encode(ctx context.Context, dst io.Writer) error {
 		fmt.Fprintf(dst, "]")
 	}
 	fmt.Fprintf(dst, ";")
+
+	if c := f.Comment; c != "" {
+		singlelineComment(dst, c)
+	}
 
 	return nil
 }

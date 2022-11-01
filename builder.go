@@ -146,14 +146,14 @@ func (b *EnumBuilder) Comment(s string) *EnumBuilder {
 }
 
 func (b *EnumBuilder) Element(name string, value int) *EnumBuilder {
-	return b.EnumElement(&EnumElement{
+	return b.EnumElements(&EnumElement{
 		Name:  name,
 		Value: value,
 	})
 }
 
-func (b *EnumBuilder) EnumElement(el *EnumElement) *EnumBuilder {
-	b.object.Elements = append(b.object.Elements, el)
+func (b *EnumBuilder) EnumElements(el ...*EnumElement) *EnumBuilder {
+	b.object.Elements = append(b.object.Elements, el...)
 	return b
 }
 
@@ -225,8 +225,16 @@ func (b *MessageBuilder) Fields(v ...*Field) *MessageBuilder {
 	return b
 }
 
+func (b *MessageBuilder) Build() (*Message, error) {
+	return b.object, nil
+}
+
 func (b *MessageBuilder) MustBuild() *Message {
-	return b.object
+	obj, err := b.Build()
+	if err != nil {
+		panic(err)
+	}
+	return obj
 }
 
 type OneOfBuilder struct {
