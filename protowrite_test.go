@@ -11,116 +11,54 @@ import (
 )
 
 func TestWrite(t *testing.T) {
-	var file protowrite.File
+	var b protowrite.Builder
 
-	file.Package = `foo.bar`
-	file.Imports = []*protowrite.Import{
-		{
-			Path: "google/protobuf/descriptor.proto",
-		},
-	}
-	file.Enums = []*protowrite.Enum{
-		{
-			Name: "Unit",
-			Elements: []*protowrite.EnumElement{
-				{
-					Name:  "VOID",
-					Value: 0,
-				},
-			},
-		},
-	}
-	file.Messages = []*protowrite.Message{
-		{
-			Name: "Message",
-			OneOfs: []*protowrite.OneOf{
-				{
-					Name: "id",
-					Fields: []*protowrite.Field{
-						{
-							Type: "string",
-							Name: "name",
-							ID:   1,
-						},
-						{
-							Type: "uint64",
-							Name: "num",
-							ID:   2,
-						},
-					},
-				},
-			},
-			Messages: []*protowrite.Message{
-				{
-					Name: "NestedMessage",
-					Options: []*protowrite.Option{
-						{
-							Name:  "(NestedMessage.fizz)",
-							Value: strconv.Quote("buzz"),
-						},
-					},
-					Extensions: []*protowrite.Extension{
-						{
-							Name: "google.protobuf.MessageOptions",
-							Fields: []*protowrite.Field{
-								{
-									Name: "fizz",
-									Type: "string",
-									ID:   49999,
-								},
-							},
-						},
-					},
-					Enums: []*protowrite.Enum{
-						{
-							Name: "Kind",
-							Elements: []*protowrite.EnumElement{
-								{
-									Name:  "NULL",
-									Value: 0,
-								},
-								{
-									Name:  "PRIMARY",
-									Value: 1,
-								},
-								{
-									Name:  "SECONDARY",
-									Value: 2,
-								},
-							},
-						},
-					},
-					Fields: []*protowrite.Field{
-						{
-							Type: "Kind",
-							Name: "kind",
-							ID:   1,
-						},
-					},
-				},
-			},
-			Fields: []*protowrite.Field{
-				{
-					Type: "NestedMessage",
-					Name: "extra",
-					ID:   3,
-				},
-			},
-		},
-	}
-	file.Services = []*protowrite.Service{
-		{
-			Name: "FooService",
-			Methods: []*protowrite.Method{
-				{
-					Name:   "Bar",
-					Input:  "Message",
-					Output: "Message",
-				},
-			},
-		},
-	}
-	buf, err := protowrite.Marshal(&file)
+	file, err := b.File().
+		Package(`foo.bar`).
+		Import("google/protobuf/descriptor.proto", protowrite.ImportDefault).
+		Enums(
+			b.Enum("Unit").
+				Element("VOID", 0).
+				MustBuild(),
+		).
+		Messages(
+			b.Message("Message").
+				OneOfs(
+					b.OneOf("id").
+						StringField("name", 1).
+						Uint64Field("num", 2).
+						MustBuild(),
+				).
+				Messages(
+					b.Message("NestedMessage").
+						Extensions(
+							b.Extension("google.protobuf.MessageOptions").
+								StringField("fizz", 49999).
+								MustBuild(),
+						).
+						Enums(
+							b.Enum("Kind").
+								Element("NULL", 0).
+								Element("PRIMARY", 1).
+								Element("SECONDARY", 2).
+								MustBuild(),
+						).
+						Option("(NestedMessage.fizz)", strconv.Quote("buzz")).
+						Field("Kind", "kind", 1).
+						MustBuild(),
+				).
+				Field("NestedMessage", "extra", 3).
+				MustBuild(),
+		).
+		Services(
+			b.Service("FooService").
+				Method("Bar", "Message", "Message").
+				MustBuild(),
+		).
+		Build()
+	require.NoError(t, err, `builder.Build should succeed`)
+
+	buf, err := protowrite.Marshal(file)
 	require.NoError(t, err, `protowrite.Marshal should succeed`)
 
 	expected, err := os.ReadFile(`testdata/sanity.golden`)
