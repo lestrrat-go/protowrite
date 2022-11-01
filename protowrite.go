@@ -15,6 +15,7 @@
 package protowrite
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -27,8 +28,13 @@ type encoder interface {
 }
 
 type encodeIndentKey struct{}
+type encodeIndentOnceKey struct{}
 
-const indentOnce = "    "
+var Indent = "    "
+
+func getIndentOnce(ctx context.Context) string {
+	return ctx.Value(encodeIndentOnceKey{}).(string)
+}
 
 func getIndent(ctx context.Context) string {
 	v := ctx.Value(encodeIndentKey{})
@@ -39,13 +45,26 @@ func getIndent(ctx context.Context) string {
 }
 
 func moreIndent(ctx context.Context) context.Context {
+	indentOnce := getIndentOnce(ctx)
+
 	cur := getIndent(ctx)
 	return context.WithValue(ctx, encodeIndentKey{}, cur+indentOnce)
 }
 
 func lessIndent(ctx context.Context) context.Context {
+	indentOnce := getIndentOnce(ctx)
+
 	cur := getIndent(ctx)
 	return context.WithValue(ctx, encodeIndentKey{}, strings.TrimSuffix(cur, indentOnce))
+}
+
+func multilineComment(ctx context.Context, dst io.Writer, s string) {
+	indent := getIndent(ctx)
+	scanner := bufio.NewScanner(strings.NewReader(s))
+	for scanner.Scan() {
+		txt := scanner.Text()
+		fmt.Fprintf(dst, "\n%s// %s", indent, txt)
+	}
 }
 
 // File represents a protobuf file, which is the top-most level resource
@@ -67,12 +86,24 @@ func (f *File) encode(ctx context.Context, dst io.Writer) error {
 	fmt.Fprintf(dst, "%ssyntax = \"proto3\";", indent)
 	fmt.Fprintf(dst, "\n\n%spackage %s;", indent, f.Package)
 
-	for i, v := range f.Imports {
-		fmt.Fprintf(dst, "\n")
-		if err := v.encode(ctx, dst); err != nil {
-			return fmt.Errorf(`failed to encode import statement %d: %w`, i, err)
+	if list := f.Imports; len(list) > 0 {
+		fmt.Fprint(dst, "\n")
+		for i, v := range list {
+			if err := v.encode(ctx, dst); err != nil {
+				return fmt.Errorf(`failed to encode import statement %d: %w`, i, err)
+			}
 		}
 	}
+
+	if list := f.Options; len(list) > 0 {
+		fmt.Fprint(dst, "\n")
+		for i, v := range list {
+			if err := v.encode(ctx, dst); err != nil {
+				return fmt.Errorf(`failed to encode option declaration %d: %w`, i, err)
+			}
+		}
+	}
+
 	for i, v := range f.Extensions {
 		fmt.Fprintf(dst, "\n")
 		if err := v.encode(ctx, dst); err != nil {
@@ -230,10 +261,15 @@ func (oo *OneOf) encode(ctx context.Context, dst io.Writer) error {
 type Enum struct {
 	Name     string
 	Elements []*EnumElement
+	Comment  string
 }
 
 func (e *Enum) encode(ctx context.Context, dst io.Writer) error {
 	indent := getIndent(ctx)
+
+	if s := e.Comment; s != "" {
+		multilineComment(ctx, dst, s)
+	}
 	fmt.Fprintf(dst, "\n%senum %s {", indent, e.Name)
 	for i, v := range e.Elements {
 		ctx = moreIndent(ctx)
@@ -247,13 +283,19 @@ func (e *Enum) encode(ctx context.Context, dst io.Writer) error {
 }
 
 type EnumElement struct {
-	Name  string
-	Value int
+	Name    string
+	Value   int
+	Comment string
 }
 
 func (ee *EnumElement) encode(ctx context.Context, dst io.Writer) error {
 	indent := getIndent(ctx)
 	fmt.Fprintf(dst, "\n%s%s = %d;", indent, ee.Name, ee.Value)
+	if s := ee.Comment; s != "" {
+		// no new lines here
+		s = strings.Replace(s, "\n", " ", -1)
+		fmt.Fprintf(dst, " // %s", s)
+	}
 	return nil
 }
 
@@ -425,8 +467,10 @@ func (m *Method) encode(ctx context.Context, dst io.Writer) error {
 }
 
 func Marshal(f *File) ([]byte, error) {
+	ctx := context.WithValue(context.Background(), encodeIndentOnceKey{}, Indent)
+
 	var dst bytes.Buffer
-	if err := f.encode(context.Background(), &dst); err != nil {
+	if err := f.encode(ctx, &dst); err != nil {
 		return nil, fmt.Errorf(`failed to write protobuf: %w`, err)
 	}
 	return dst.Bytes(), nil

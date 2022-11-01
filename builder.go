@@ -22,6 +22,10 @@ func (b *Builder) Enum(name string) *EnumBuilder {
 	return &EnumBuilder{object: &Enum{Name: name}}
 }
 
+func (b *Builder) EnumElement(name string, value int) *EnumElementBuilder {
+	return &EnumElementBuilder{object: &EnumElement{Name: name, Value: value}}
+}
+
 func (b *Builder) Extension(name string) *ExtensionBuilder {
 	return &ExtensionBuilder{object: &Extension{Name: name}}
 }
@@ -111,6 +115,14 @@ func (b *FileBuilder) Messages(v ...*Message) *FileBuilder {
 	return b
 }
 
+func (b *FileBuilder) Option(name string, value interface{}) *FileBuilder {
+	b.object.Options = append(b.object.Options, &Option{
+		Name:  name,
+		Value: value,
+	})
+	return b
+}
+
 func (b *FileBuilder) Services(v ...*Service) *FileBuilder {
 	b.object.Services = append(b.object.Services, v...)
 	return b
@@ -128,12 +140,34 @@ func (b *EnumBuilder) MustBuild() *Enum {
 	return b.object
 }
 
+func (b *EnumBuilder) Comment(s string) *EnumBuilder {
+	b.object.Comment = s
+	return b
+}
+
 func (b *EnumBuilder) Element(name string, value int) *EnumBuilder {
-	b.object.Elements = append(b.object.Elements, &EnumElement{
+	return b.EnumElement(&EnumElement{
 		Name:  name,
 		Value: value,
 	})
+}
+
+func (b *EnumBuilder) EnumElement(el *EnumElement) *EnumBuilder {
+	b.object.Elements = append(b.object.Elements, el)
 	return b
+}
+
+type EnumElementBuilder struct {
+	object *EnumElement
+}
+
+func (b *EnumElementBuilder) Comment(s string) *EnumElementBuilder {
+	b.object.Comment = s
+	return b
+}
+
+func (b *EnumElementBuilder) MustBuild() *EnumElement {
+	return b.object
 }
 
 type MessageBuilder struct {
