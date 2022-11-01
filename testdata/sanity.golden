@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package foo.bar;
+
+import "google/protobuf/descriptor.proto";
+
+message Message {
+    oneof id {
+        string name = 1;
+        uint64 num = 2;
+    }
+    message NestedMessage {
+        extend google.protobuf.MessageOptions {
+            string fizz = 49999;
+        }
+        option (NestedMessage.fizz) = "buzz";
+        enum Kind {
+            NULL = 0;
+            PRIMARY = 1;
+            SECONDARY = 2;
+        }
+        Kind kind = 1;
+    }
+    NestedMessage extra = 3;
+}
+
+enum Unit {
+    VOID = 0;
+}
+
+service FooService {
+    rpc Bar(Message) returns (Message);
+}
