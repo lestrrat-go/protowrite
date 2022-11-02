@@ -174,6 +174,11 @@ type MessageBuilder struct {
 	object *Message
 }
 
+func (b *MessageBuilder) Comment(s string) *MessageBuilder {
+	b.object.Comment = s
+	return b
+}
+
 func (b *MessageBuilder) StringField(name string, id int) *MessageBuilder {
 	b.object.Fields = append(b.object.Fields, StringField(name, id))
 	return b

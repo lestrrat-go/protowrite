@@ -324,6 +324,7 @@ func (e *Extension) encode(ctx context.Context, dst io.Writer) error {
 
 type Message struct {
 	Name       string
+	Comment    string
 	Fields     []*Field
 	OneOfs     []*OneOf
 	Messages   []*Message
@@ -334,8 +335,11 @@ type Message struct {
 
 func (m *Message) encode(ctx context.Context, dst io.Writer) error {
 	indent := getIndent(ctx)
-	fmt.Fprintf(dst, "\n%smessage %s {", indent, m.Name)
 
+	if c := m.Comment; c != "" {
+		multilineComment(ctx, dst, c)
+	}
+	fmt.Fprintf(dst, "\n%smessage %s {", indent, m.Name)
 	for i, v := range m.OneOfs {
 		ctx = moreIndent(ctx)
 		if err := v.encode(ctx, dst); err != nil {
@@ -369,6 +373,7 @@ func (m *Message) encode(ctx context.Context, dst io.Writer) error {
 		if err := v.encode(ctx, dst); err != nil {
 			return fmt.Errorf(`failed to encode nested message declaration %d for message %q: %w`, i, m.Name, err)
 		}
+		fmt.Fprint(dst, "\n")
 		ctx = lessIndent(ctx)
 	}
 	for i, v := range m.Fields {
